@@ -4,23 +4,26 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MediLedger — Doctor Finance (Demo)</title>
-  <!-- Icons -->
+  <!-- Icons & Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <style>
     :root{
       --bg: #0b1220;
-      --panel: #0f172a;   /* slate-900 */
-      --panel-2: #111827; /* gray-900 */
-      --muted: #94a3b8;   /* slate-400 */
-      --text: #e5e7eb;    /* gray-200 */
-      --brand: #22d3ee;   /* cyan-400 */
-      --brand-2: #34d399; /* emerald-400 */
-      --danger: #fb7185;  /* rose-400 */
-      --warning: #f59e0b; /* amber-500 */
+      --panel: #0f172a;
+      --panel-2: #111827;
+      --muted: #94a3b8;
+      --text: #e5e7eb;
+      --brand: #22d3ee;
+      --brand-2: #34d399;
+      --danger: #fb7185;
+      --warning: #f59e0b;
       --ring: rgba(34,211,238,.35);
       --card: #0b1220;
       --border: rgba(148,163,184,.15);
@@ -34,26 +37,22 @@
       color:var(--text); font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
       -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
     }
-    /* Layout */
     .app{ display:grid; grid-template-columns:260px 1fr; min-height:100vh }
     aside{
       border-right:1px solid var(--border);
       background:linear-gradient(180deg, #0d1424, #0b1220);
       padding:22px 16px; position:sticky; top:0; height:100vh; overflow:auto;
+      box-shadow: 0 1px 12px rgba(34,211,238,.07);
     }
     .brand{ display:flex; gap:10px; align-items:center; font-weight:800; letter-spacing:.3px; font-size:20px; }
     .brand .logo{ width:40px; height:40px; border-radius:12px; display:grid; place-items:center; background:radial-gradient(60% 80% at 30% 20%, rgba(52,211,153,.35), transparent 60%), radial-gradient(70% 80% at 70% 80%, rgba(34,211,238,.4), transparent 60%); border:1px solid var(--border) }
     .brand small{ color:var(--muted); font-weight:600 }
-
     nav{ margin-top:18px; display:grid; gap:6px }
-    .nav-btn{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; text-decoration:none; color:var(--text); border:1px solid transparent; transition:.2s all;
-      background:transparent; cursor:pointer; font-weight:600 }
+    .nav-btn{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; text-decoration:none; color:var(--text); border:1px solid transparent; transition:.2s all; background:transparent; cursor:pointer; font-weight:600 }
     .nav-btn:hover{ background:rgba(148,163,184,.06); border-color:var(--border) }
     .nav-btn.active{ background:linear-gradient(180deg, rgba(34,211,238,.12), rgba(52,211,153,.12)); border-color:var(--ring) }
     .nav-btn svg{ width:18px; height:18px; opacity:.9 }
-
     .aside-footer{ margin-top:auto; font-size:12px; color:var(--muted) }
-
     main{ padding:28px; }
     .toolbar{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:18px }
     .toolbar .search{ flex:1; min-width:220px; }
@@ -62,67 +61,123 @@
       outline:0; transition:box-shadow .2s ease, border .2s ease;
     }
     .search input:focus{ box-shadow:0 0 0 4px var(--ring); border-color:var(--brand) }
-
-    .btn{ padding:10px 14px; border-radius:12px; border:1px solid var(--border); background:#0c1526; color:var(--text); font-weight:700; cursor:pointer }
-    .btn:hover{ filter:brightness(1.1) }
-    .btn.primary{ background:linear-gradient(180deg, rgba(34,211,238,.2), rgba(52,211,153,.2)); border-color:var(--ring) }
+    .btn, .tab-btn {
+      padding: 11px 18px;
+      border-radius: 14px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      background: linear-gradient(90deg, rgba(34,211,238,.17), rgba(52,211,153,.16));
+      border: 1px solid var(--border);
+      color: var(--text);
+      box-shadow: 0 1px 6px rgba(34,211,238,.09);
+      transition: filter .2s, box-shadow .2s, background .2s;
+    }
+    .btn:hover, .tab-btn:hover, .btn.active, .tab-btn.active {
+      filter: brightness(1.19);
+      box-shadow: 0 4px 16px rgba(34,211,238,0.16);
+      background: linear-gradient(90deg, rgba(34,211,238,.23), rgba(52,211,153,.24));
+    }
+    .btn.primary, .tab-btn.active {
+      background: linear-gradient(90deg, rgba(34,211,238,.32), rgba(52,211,153,.31));
+      border-color: var(--ring);
+      color: #fff;
+    }
     .btn.ghost{ background:transparent }
-
     .cards{ display:grid; grid-template-columns:repeat(12, 1fr); gap:14px; }
-    .card{ grid-column:span 12; background:linear-gradient(180deg, #0d1525, #0b1220); border:1px solid var(--border); border-radius:18px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.25) }
-    .card-title{ font-weight:700; letter-spacing:.3px; display:flex; align-items:center; gap:8px; margin-bottom:10px }
+    .card, .form, .presc-table, .inv-table {
+      box-shadow: 0 2px 16px rgba(34,211,238,0.09), 0 1.5px 6px rgba(52,211,153,0.07);
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, #101826 80%, #0b1220 100%);
+      transition: box-shadow .21s, transform .21s;
+      margin-bottom: 16px;
+    }
+    .card:hover, .form:hover {
+      box-shadow: 0 8px 32px rgba(34,211,238,0.14), 0 3px 18px rgba(52,211,153,0.10);
+      transform: translateY(-2px) scale(1.012);
+    }
+    .card-title, h2.card-title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--brand);
+      margin-bottom: 10px;
+      letter-spacing: .04em;
+      text-shadow: 0 1px 6px rgba(34,211,238,.12);
+      display:flex; align-items:center; gap:8px;
+    }
     .kpi{ display:flex; align-items:baseline; gap:10px; font-weight:800; font-size:28px }
     .kpi small{ color:var(--muted); font-weight:700; font-size:12px }
-
     @media (min-width: 640px){ .card{ grid-column:span 6 } }
     @media (min-width: 980px){ .card{ grid-column:span 4 } }
-
     .grid-2{ display:grid; grid-template-columns:1fr; gap:14px }
     @media (min-width: 980px){ .grid-2{ grid-template-columns:1fr 1fr } }
-
     .chart-wrap{ padding:6px 0 0 }
-
-    /* Table */
     table{ width:100%; border-collapse:collapse; font-size:14px }
-    thead th{ text-align:left; font-weight:700; color:var(--muted); border-bottom:1px solid var(--border); padding:10px }
-    tbody td{ padding:10px; border-bottom:1px dashed var(--border) }
-    tbody tr:hover{ background:rgba(148,163,184,.06) }
-    .pill{ display:inline-flex; gap:6px; align-items:center; padding:4px 8px; border-radius:999px; border:1px solid var(--border); font-weight:700; font-size:12px }
-    .pill.income{ color:#10b981; border-color:rgba(16,185,129,.35); background:rgba(16,185,129,.12) }
-    .pill.expense{ color:#f43f5e; border-color:rgba(244,63,94,.35); background:rgba(244,63,94,.12) }
-
-    /* Form */
+    table th, table td {
+      padding: 12px 10px;
+    }
+    table thead {
+      background: linear-gradient(90deg, rgba(34,211,238,.06), rgba(52,211,153,.10));
+    }
+    table tbody tr:hover {
+      background: linear-gradient(90deg, rgba(34,211,238,.08), rgba(52,211,153,.09));
+      cursor: pointer;
+      transition: background .18s;
+    }
+    thead th{ text-align:left; font-weight:700; color:var(--muted); border-bottom:1px solid var(--border);}
+    tbody td{ border-bottom:1px dashed var(--border) }
+    .pill {
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 13px;
+      background: rgba(34,211,238,.07);
+      border: 1.2px solid rgba(34,211,238,.19);
+      transition: background .15s;
+      display:inline-flex; gap:6px; align-items:center;
+    }
+    .pill.income { color: var(--ok); background: rgba(16,185,129,.15); }
+    .pill.expense { color: var(--danger); background: rgba(244,63,94,.13); }
     .form{ display:grid; grid-template-columns:1fr; gap:12px }
     @media (min-width: 860px){ .form{ grid-template-columns:repeat(2, 1fr) } }
     .form .field{ display:grid; gap:8px }
     .form label{ font-weight:700; font-size:13px; color:var(--muted) }
     .form input, .form select, .form textarea{
-      width:100%; padding:11px 12px; border-radius:12px; background:#0b1424; border:1px solid var(--border); color:var(--text); outline:0
+      width:100%; padding:11px 12px; border-radius:12px; background:#0b1424; border:1.5px solid var(--border); color:var(--text); outline:0; font-size:15px;
+      transition: border-color .18s, box-shadow .18s;
     }
     .form textarea{ min-height:88px; grid-column:1 / -1 }
-
+    .form input:focus, .form select:focus, .form textarea:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 4px var(--ring);
+    }
     .footer-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:10px }
-
-    /* Badges */
     .ok{ color:var(--ok) } .bad{ color:var(--bad) }
-
-    /* Sections routing */
     section[hidden]{ display:none !important }
-
-    /* Tiny helpers */
     .muted{ color:var(--muted) }
     .space{ height:8px }
     .spacer{ height:18px }
     .divider{ height:1px; background:var(--border); margin:10px 0 }
     .right{ text-align:right }
     .center{ text-align:center }
-
     .hero{ display:grid; gap:16px; padding:12px 0 18px }
     .hero h1{ font-size:32px; line-height:1.1; margin:0 }
     .hero p{ color:var(--muted); max-width:60ch }
     .hero .cta{ display:flex; gap:10px; flex-wrap:wrap }
-
     .notice{ font-size:12px; color:var(--muted) }
+    .tabbed { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap:wrap; }
+    .tab-btn { min-width: 120px; }
+    .presc-table, .inv-table { margin-top:10px; }
+    .inv-actions { display:flex; gap:6px; }
+    ::-webkit-scrollbar { width: 8px; background: var(--panel-2); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+    @media (max-width: 700px) {
+      .app { grid-template-columns: 1fr; }
+      aside { position:static; height:auto; border-right:none; }
+      main { padding: 12px; }
+      .cards { grid-template-columns:1fr; }
+      .grid-2 { grid-template-columns:1fr; }
+    }
   </style>
 </head>
 <body>
@@ -130,13 +185,11 @@
     <aside>
       <div class="brand">
         <div class="logo" aria-hidden="true">
-          <!-- simple cross icon -->
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/></svg>
         </div>
         MediLedger<br/>
       </div>
       <small class="muted">Doctor Finance — Demo</small>
-
       <nav aria-label="Primary">
         <button class="nav-btn active" data-route="landing">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9"/><path d="M9 21V9h6v12"/></svg>
@@ -154,13 +207,19 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
           Transactions
         </button>
+        <button class="nav-btn" data-route="prescription">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H19"/><path d="M19 17V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v12"/></svg>
+          Doctor Prescription
+        </button>
+        <button class="nav-btn" data-route="inventory">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18"/><path d="M3 9h18"/></svg>
+          Inventory
+        </button>
       </nav>
-
       <div class="spacer"></div>
       <button class="btn primary" id="seedBtn">Load Sample Data</button>
       <div class="space"></div>
       <button class="btn ghost" id="clearBtn">Clear All Data</button>
-
       <div class="aside-footer">
         <div class="divider"></div>
         <div>Currency: <strong id="currencyLabel">₹</strong></div>
@@ -173,18 +232,15 @@
           <option value="GBP">GBP (£)</option>
         </select>
         <div class="space"></div>
-        <small class="notice">Your entries are stored locally in your browser (LocalStorage) in this demo.</small>
+        <small class="notice">Your entries are stored locally in your browser (LocalStorage) in this demo.<br/>To use Firebase, connect your API keys.</small>
       </div>
     </aside>
-
     <main>
       <div class="toolbar">
         <div class="search"><input id="search" type="search" placeholder="Search patient, ID, notes... (⌘/Ctrl + K)"/></div>
         <button class="btn" data-route="add">+ New Transaction</button>
         <button class="btn" id="exportCsv">Export CSV</button>
       </div>
-
-      <!-- Landing -->
       <section id="landing">
         <div class="hero">
           <h1>Manage your clinic finances with clarity.</h1>
@@ -194,7 +250,6 @@
             <button class="btn" data-route="dashboard">View dashboard</button>
           </div>
         </div>
-
         <div class="cards">
           <div class="card">
             <div class="card-title">Why MediLedger?</div>
@@ -214,8 +269,6 @@
           </div>
         </div>
       </section>
-
-      <!-- Add Transaction -->
       <section id="add" hidden>
         <h2 class="card-title">Add Transaction</h2>
         <form id="txForm" class="form" autocomplete="on">
@@ -280,8 +333,6 @@
           </div>
         </form>
       </section>
-
-      <!-- Dashboard -->
       <section id="dashboard" hidden>
         <h2 class="card-title">Dashboard</h2>
         <div class="cards">
@@ -307,8 +358,6 @@
           </div>
         </div>
       </section>
-
-      <!-- Transactions List -->
       <section id="list" hidden>
         <h2 class="card-title">Transactions</h2>
         <div class="card">
@@ -329,121 +378,201 @@
           </table>
         </div>
       </section>
-
+      <section id="prescription" hidden>
+        <h2 class="card-title">Doctor Prescription</h2>
+        <div class="tabbed" role="tablist">
+          <button class="tab-btn active" id="tab-add-presc" role="tab" aria-selected="true">Add Prescription</button>
+          <button class="tab-btn" id="tab-list-presc" role="tab">View Prescriptions</button>
+        </div>
+        <div id="presc-add-section">
+          <form id="prescForm" class="form">
+            <div class="field">
+              <label for="prescDate">Date</label>
+              <input id="prescDate" name="date" type="date" required/>
+            </div>
+            <div class="field">
+              <label for="docName">Doctor Name</label>
+              <input id="docName" name="doctor" type="text" required/>
+            </div>
+            <div class="field">
+              <label for="prescPatient">Patient Name</label>
+              <input id="prescPatient" name="patient" type="text" required/>
+            </div>
+            <div class="field">
+              <label for="prescMed">Medicine(s)</label>
+              <input id="prescMed" name="medicine" type="text" placeholder="e.g., Paracetamol, Amoxicillin" required/>
+            </div>
+            <div class="field" style="grid-column:1 / -1">
+              <label for="prescNotes">Notes</label>
+              <textarea id="prescNotes" name="notes" placeholder="Dosage, advice, etc."></textarea>
+            </div>
+            <div class="footer-actions" style="grid-column:1 / -1">
+              <button type="reset" class="btn">Reset</button>
+              <button type="submit" class="btn primary">Save Prescription</button>
+            </div>
+          </form>
+        </div>
+        <div id="presc-list-section" style="display:none">
+          <table class="presc-table" aria-label="Prescriptions table">
+            <thead>
+              <tr>
+                <th>Date</th><th>Doctor</th><th>Patient</th><th>Medicine(s)</th><th>Notes</th><th class="right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="prescTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+      <section id="inventory" hidden>
+        <h2 class="card-title">Pharmacy Inventory</h2>
+        <div class="tabbed" role="tablist">
+          <button class="tab-btn active" id="tab-add-inv" role="tab" aria-selected="true">Add Item</button>
+          <button class="tab-btn" id="tab-list-inv" role="tab">View Inventory</button>
+        </div>
+        <div id="inv-add-section">
+          <form id="invForm" class="form">
+            <div class="field">
+              <label for="invName">Medicine Name</label>
+              <input id="invName" name="name" type="text" required/>
+            </div>
+            <div class="field">
+              <label for="invBatch">Batch No.</label>
+              <input id="invBatch" name="batch" type="text" required/>
+            </div>
+            <div class="field">
+              <label for="invExpiry">Expiry Date</label>
+              <input id="invExpiry" name="expiry" type="date" required/>
+            </div>
+            <div class="field">
+              <label for="invQty">Quantity</label>
+              <input id="invQty" name="quantity" type="number" min="0" required/>
+            </div>
+            <div class="field">
+              <label for="invSupplier">Supplier</label>
+              <input id="invSupplier" name="supplier" type="text"/>
+            </div>
+            <div class="footer-actions" style="grid-column:1 / -1">
+              <button type="reset" class="btn">Reset</button>
+              <button type="submit" class="btn primary">Save Item</button>
+            </div>
+          </form>
+        </div>
+        <div id="inv-list-section" style="display:none">
+          <table class="inv-table" aria-label="Inventory table">
+            <thead>
+              <tr>
+                <th>Medicine</th><th>Batch</th><th>Expiry</th><th>Qty</th><th>Supplier</th><th class="right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="invTableBody"></tbody>
+          </table>
+        </div>
+      </section>
     </main>
   </div>
-
   <script>
-    // ====== Utilities ======
+    // ===== Firebase Setup =====
+    // Set useFirebase=true and fill firebaseConfig to use Firestore!
+    const useFirebase = false; // Set to true for Firestore
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+    let db;
+    if (useFirebase) {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+    }
+    async function getData(collection) {
+      if (useFirebase) {
+        const snap = await db.collection(collection).get();
+        return snap.docs.map(d=>({id:d.id,...d.data()}));
+      } else {
+        try {
+          return JSON.parse(localStorage.getItem('mediledger.'+collection) || '[]');
+        } catch { return []; }
+      }
+    }
+    async function setData(collection, arr) {
+      if (useFirebase) {
+        const batch = db.batch();
+        const ref = db.collection(collection);
+        const snap = await ref.get();
+        snap.docs.forEach(doc=> batch.delete(doc.ref));
+        arr.forEach(obj=>{
+          const docRef = ref.doc(obj.id || db.collection(collection).doc().id);
+          batch.set(docRef, obj);
+        });
+        await batch.commit();
+      } else {
+        localStorage.setItem('mediledger.'+collection, JSON.stringify(arr));
+      }
+    }
+    async function addData(collection, obj) {
+      if (useFirebase) {
+        await db.collection(collection).doc(obj.id || db.collection(collection).doc().id).set(obj);
+      } else {
+        let arr = await getData(collection);
+        arr.unshift(obj);
+        await setData(collection, arr);
+      }
+    }
+    async function deleteData(collection, id) {
+      if (useFirebase) {
+        await db.collection(collection).doc(id).delete();
+      } else {
+        let arr = await getData(collection);
+        arr = arr.filter(o=>o.id!==id);
+        await setData(collection, arr);
+      }
+    }
+    // ===== Utilities ======
     const $ = (sel, root=document) => root.querySelector(sel);
     const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
-
-    const API_BASE = "/api/transactions";
+    const storeKey = 'mediledger.transactions.v1';
     const currencyKey = 'mediledger.currency';
-
     const currencyMap = {
       INR: { symbol:'₹', locale: 'en-IN' },
       USD: { symbol:'$', locale: 'en-US' },
       EUR: { symbol:'€', locale: 'de-DE' },
       GBP: { symbol:'£', locale: 'en-GB' },
     };
-
     let transactions = [];
     let currentCurrency = localStorage.getItem(currencyKey) || 'INR';
-
     function fmtMoney(n){
       const cfg = currencyMap[currentCurrency] || currencyMap.INR;
       try{ return new Intl.NumberFormat(cfg.locale, { style:'currency', currency: currentCurrency }).format(n); }
       catch{ return cfg.symbol + (n||0).toFixed(2) }
     }
-
     // ====== Routing ======
     function go(route){
       $$('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.route===route));
       $$('main > section').forEach(s=>{
         s.hidden = (s.id !== route);
       });
+      if(route==='prescription') loadPrescriptions();
+      if(route==='inventory') loadInventory();
     }
-
-    // ====== API Communication ======
-    async function load(){
-      try {
-        const response = await fetch(API_BASE);
-        if (!response.ok) throw new Error('Failed to fetch transactions');
-        const data = await response.json();
-
-        // Transform backend data to match frontend format
-        transactions = data.map(item => ({
-          id: item.ID,
-          date: item.Date,
-          type: item.Type,
-          amount: parseFloat(item.Amount),
-          category: item.Category,
-          patientName: item['Patient Name'],
-          patientId: item['Patient ID'],
-          phone: item.Phone,
-          payment: item.Payment,
-          notes: item.Notes
-        }));
-      } catch (error) {
-        console.error("Error loading transactions:", error);
-        alert("Failed to load transactions. Check console for details.");
-        transactions = [];
-      }
+    // ====== Persistence ======
+    function load(){
+      getData('transactions').then(data=>{
+        transactions = data;
+        renderAll();
+      });
     }
-
-    async function saveTransaction(tx) {
-      try {
-        const response = await fetch(API_BASE, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            date: tx.date,
-            type: tx.type,
-            amount: tx.amount,
-            category: tx.category,
-            patientName: tx.patientName,
-            patientId: tx.patientId,
-            phone: tx.phone,
-            payment: tx.payment,
-            notes: tx.notes
-          })
-        });
-
-        if (!response.ok) throw new Error('Failed to save transaction');
-        await load(); // Reload data from backend
-        return true;
-      } catch (error) {
-        console.error("Error saving transaction:", error);
-        alert("Failed to save transaction. Check console for details.");
-        return false;
-      }
-    }
-
-    async function deleteTransaction(id) {
-      try {
-        const response = await fetch(`${API_BASE}/${id}`, {
-          method: "DELETE"
-        });
-
-        if (!response.ok) throw new Error('Failed to delete transaction');
-        await load(); // Reload data from backend
-        return true;
-      } catch (error) {
-        console.error("Error deleting transaction:", error);
-        alert("Failed to delete transaction. Check console for details.");
-        return false;
-      }
-    }
-
+    function save(){ setData('transactions', transactions); }
     // ====== Form Submit ======
-    $('#txForm').addEventListener('submit', async (e)=>{
+    $('#txForm').addEventListener('submit', (e)=>{
       e.preventDefault();
       const data = Object.fromEntries(new FormData(e.target).entries());
       const amount = parseFloat(data.amount || '0');
       if(!isFinite(amount) || amount <= 0){ alert('Enter a valid amount'); return; }
-
       const tx = {
+        id: crypto.randomUUID(),
         date: data.date || new Date().toISOString().slice(0,10),
         type: data.type,
         amount,
@@ -454,16 +583,13 @@
         payment: data.payment,
         notes: data.notes?.trim() || ''
       };
-
-      const success = await saveTransaction(tx);
-      if (success) {
-        e.target.reset();
-        $('#date').value = new Date().toISOString().slice(0,10);
-        renderAll();
-        go('list');
-      }
+      transactions.unshift(tx);
+      save();
+      e.target.reset();
+      $('#date').value = new Date().toISOString().slice(0,10);
+      renderAll();
+      go('list');
     });
-
     // ====== Rendering ======
     function renderKPIs(){
       const income = transactions.filter(t=>t.type==='Income').reduce((a,b)=>a+b.amount,0);
@@ -472,9 +598,8 @@
       $('#kpiExpense').textContent = fmtMoney(expense);
       $('#kpiNet').textContent = fmtMoney(income - expense);
     }
-
     function monthlyBuckets(){
-      const map = new Map(); // key: YYYY-MM
+      const map = new Map();
       for(const t of transactions){
         const ym = (t.date||'').slice(0,7);
         if(!map.has(ym)) map.set(ym, { income:0, expense:0 });
@@ -485,7 +610,6 @@
       const expense = keys.map(k=>map.get(k).expense);
       return { labels: keys, income, expense };
     }
-
     function categoryTotals(){
       const map = new Map();
       for(const t of transactions){
@@ -497,18 +621,14 @@
       const totals = labels.map(l=> map.get(l).income - map.get(l).expense );
       return { labels, totals };
     }
-
     let monthlyChart, categoryChart;
     function renderCharts(){
       const m = monthlyBuckets();
       const c = categoryTotals();
-
       const ctxM = $('#monthlyChart');
       const ctxC = $('#categoryChart');
-
       if(monthlyChart) monthlyChart.destroy();
       if(categoryChart) categoryChart.destroy();
-
       monthlyChart = new Chart(ctxM, {
         type:'bar',
         data:{ labels: m.labels, datasets:[
@@ -517,20 +637,17 @@
         ]},
         options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
       });
-
       categoryChart = new Chart(ctxC, {
         type:'bar',
         data:{ labels:c.labels, datasets:[ { label:'Net by Category', data:c.totals, borderWidth:2 } ] },
         options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, scales:{ x:{ beginAtZero:true } } }
       });
     }
-
     function renderTable(){
       const tbody = $('#txTable tbody');
       const q = $('#search').value.trim().toLowerCase();
       tbody.innerHTML = '';
       const cfg = currencyMap[currentCurrency];
-
       const rows = transactions.filter(t=>{
         if(!q) return true;
         return [t.patientName, t.patientId, t.phone, t.category, t.payment, t.notes].some(v=> String(v||'').toLowerCase().includes(q));
@@ -548,27 +665,25 @@
         `;
         return tr;
       });
-
       rows.forEach(r=>tbody.appendChild(r));
-
-      // delete handlers
       $$('button[data-del]').forEach(btn=>{
-        btn.onclick = async () => {
+        btn.onclick = () => {
           const id = btn.getAttribute('data-del');
-          if(confirm('Are you sure you want to delete this transaction?')) {
-            await deleteTransaction(id);
+          const idx = transactions.findIndex(t=>t.id===id);
+          if(idx>-1){
+            transactions.splice(idx,1);
+            save();
+            renderAll();
           }
         }
       })
     }
-
     function renderAll(){
       renderKPIs();
       renderCharts();
       renderTable();
       $('#currencyLabel').textContent = currencyMap[currentCurrency].symbol;
     }
-
     // ====== CSV Export ======
     function toCSV(){
       const header = ['Date','Type','Amount','Category','Patient Name','Patient ID','Phone','Payment','Notes'];
@@ -578,7 +693,6 @@
       const csv = [header, ...lines].map(r=> r.map(v=>`"${String(v??'').replaceAll('"','\"')}"`).join(',')).join('\n');
       return csv;
     }
-
     $('#exportCsv').onclick = ()=>{
       const blob = new Blob([toCSV()], { type:'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
@@ -587,11 +701,35 @@
       a.click();
       URL.revokeObjectURL(a.href);
     }
-
-    // Remove seed and clear functionality as they don't apply to backend
-    $('#seedBtn').style.display = 'none';
-    $('#clearBtn').style.display = 'none';
-
+    // ====== Seed & Clear ======
+    $('#seedBtn').onclick = ()=>{
+      const today = new Date();
+      const iso = (d)=> d.toISOString().slice(0,10);
+      const sample = [
+        {date: iso(new Date(today.getFullYear(), today.getMonth()-2, 3)), type:'Income', amount:800, category:'Consultation', patientName:'Shreya Iyer', patientId:'P-1001', phone:'90000 11111', payment:'UPI', notes:'General checkup'},
+        {date: iso(new Date(today.getFullYear(), today.getMonth()-2, 9)), type:'Expense', amount:250, category:'Supplies', patientName:'', patientId:'', phone:'', payment:'Card', notes:'Syringes & gloves'},
+        {date: iso(new Date(today.getFullYear(), today.getMonth()-1, 12)), type:'Income', amount:4000, category:'Procedure', patientName:'Arjun Patel', patientId:'P-1002', phone:'90000 22222', payment:'Card', notes:'Minor surgery'},
+        {date: iso(new Date(today.getFullYear(), today.getMonth()-1, 15)), type:'Expense', amount:1500, category:'Staff', patientName:'', patientId:'', phone:'', payment:'Bank Transfer', notes:'Assistant salary (partial)'},
+        {date: iso(new Date(today.getFullYear(), today.getMonth()-1, 22)), type:'Income', amount:1200, category:'Diagnostics', patientName:'Neha Gupta', patientId:'P-1003', phone:'90000 33333', payment:'Cash', notes:'ECG + Lab'},
+        {date: iso(new Date(today.getFullYear(), today.getMonth(), 5)), type:'Expense', amount:2200, category:'Rent', payment:'Bank Transfer', notes:'Clinic rent'},
+        {date: iso(new Date(today.getFullYear(), today.getMonth(), 6)), type:'Expense', amount:650, category:'Utilities', payment:'UPI', notes:'Electricity + Water'},
+        {date: iso(new Date(today.getFullYear(), today.getMonth(), 7)), type:'Income', amount:900, category:'Consultation', patientName:'Rahul Kumar', patientId:'P-1004', phone:'90000 44444', payment:'UPI', notes:'Follow-up'},
+        {date: iso(new Date(today.getFullYear(), today.getMonth(), 11)), type:'Income', amount:1400, category:'Pharmacy', patientName:'Aisha Khan', patientId:'P-1005', phone:'90000 55555', payment:'Cash', notes:'Post-op meds'},
+        {date: iso(new Date(today.getFullYear(), today.getMonth(), 14)), type:'Expense', amount:300, category:'Supplies', payment:'Card', notes:'Bandages'}
+      ].map((t)=> ({ id: crypto.randomUUID(), payment: t.payment||'UPI', phone:t.phone||'', patientId:t.patientId||'', patientName:t.patientName||'', ...t }));
+      const sig = (t)=> `${t.date}|${t.amount}|${t.type}|${t.category}`;
+      const have = new Set(transactions.map(sig));
+      for(const t of sample){ if(!have.has(sig(t))) transactions.push(t); }
+      transactions.sort((a,b)=> (a.date<b.date?1:-1));
+      save();
+      renderAll();
+      go('dashboard');
+    };
+    $('#clearBtn').onclick = ()=>{
+      if(confirm('Delete ALL transactions?')){
+        transactions = []; save(); renderAll();
+      }
+    };
     // Currency change
     const currencySelect = $('#currencySelect');
     currencySelect.value = currentCurrency;
@@ -600,20 +738,128 @@
       localStorage.setItem(currencyKey, currentCurrency);
       renderAll();
     }
-
     // Search
     $('#search').addEventListener('input', renderTable);
     window.addEventListener('keydown', (e)=>{
       if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); $('#search').focus(); }
     });
-
     // Nav buttons
     $$('button[data-route]').forEach(btn=> btn.addEventListener('click', ()=> go(btn.dataset.route)));
-
-    // Init
+    // ===== Prescription Logic =====
+    let prescriptions = [];
+    async function loadPrescriptions() {
+      prescriptions = await getData('prescriptions');
+      renderPrescTable();
+    }
+    $('#prescForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target).entries());
+      const presc = {
+        id: crypto.randomUUID(),
+        date: data.date || new Date().toISOString().slice(0,10),
+        doctor: data.doctor,
+        patient: data.patient,
+        medicine: data.medicine,
+        notes: data.notes||''
+      };
+      await addData('prescriptions', presc);
+      await loadPrescriptions();
+      e.target.reset();
+      $('#prescDate').value = new Date().toISOString().slice(0,10);
+      showPrescTab('list');
+    });
+    function renderPrescTable() {
+      const tbody = $('#prescTableBody');
+      tbody.innerHTML = '';
+      prescriptions.forEach(p=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${p.date}</td>
+          <td>${p.doctor}</td>
+          <td>${p.patient}</td>
+          <td>${p.medicine}</td>
+          <td>${p.notes||''}</td>
+          <td class="right"><button class="btn ghost" data-del-presc="${p.id}">Delete</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+      $$('button[data-del-presc]').forEach(btn=>{
+        btn.onclick = async ()=>{
+          await deleteData('prescriptions', btn.getAttribute('data-del-presc'));
+          await loadPrescriptions();
+        }
+      });
+    }
+    function showPrescTab(tab) {
+      $('#tab-add-presc').classList.toggle('active', tab==='add');
+      $('#tab-list-presc').classList.toggle('active', tab==='list');
+      $('#presc-add-section').style.display = tab==='add' ? '' : 'none';
+      $('#presc-list-section').style.display = tab==='list' ? '' : 'none';
+    }
+    $('#tab-add-presc').onclick = ()=> showPrescTab('add');
+    $('#tab-list-presc').onclick = ()=> { showPrescTab('list'); loadPrescriptions(); };
+    // ===== Inventory Logic =====
+    let inventory = [];
+    async function loadInventory() {
+      inventory = await getData('inventory');
+      renderInvTable();
+    }
+    $('#invForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target).entries());
+      const item = {
+        id: crypto.randomUUID(),
+        name: data.name,
+        batch: data.batch,
+        expiry: data.expiry,
+        quantity: parseInt(data.quantity,10)||0,
+        supplier: data.supplier||''
+      };
+      await addData('inventory', item);
+      await loadInventory();
+      e.target.reset();
+      showInvTab('list');
+    });
+    function renderInvTable() {
+      const tbody = $('#invTableBody');
+      tbody.innerHTML = '';
+      inventory.forEach(i=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${i.name}</td>
+          <td>${i.batch}</td>
+          <td>${i.expiry}</td>
+          <td>${i.quantity}</td>
+          <td>${i.supplier||''}</td>
+          <td class="right">
+            <div class="inv-actions">
+              <button class="btn ghost" data-del-inv="${i.id}">Delete</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      $$('button[data-del-inv]').forEach(btn=>{
+        btn.onclick = async ()=>{
+          await deleteData('inventory', btn.getAttribute('data-del-inv'));
+          await loadInventory();
+        }
+      });
+    }
+    function showInvTab(tab) {
+      $('#tab-add-inv').classList.toggle('active', tab==='add');
+      $('#tab-list-inv').classList.toggle('active', tab==='list');
+      $('#inv-add-section').style.display = tab==='add' ? '' : 'none';
+      $('#inv-list-section').style.display = tab==='list' ? '' : 'none';
+    }
+    $('#tab-add-inv').onclick = ()=> showInvTab('add');
+    $('#tab-list-inv').onclick = ()=> { showInvTab('list'); loadInventory(); };
+    // ===== Init =====
     load();
     $('#date').value = new Date().toISOString().slice(0,10);
-    renderAll();
+    $('#prescDate').value = new Date().toISOString().slice(0,10);
+    showPrescTab('add');
+    showInvTab('add');
   </script>
 </body>
 </html>
