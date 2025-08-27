@@ -469,110 +469,117 @@
         </div>
       </section>
     </main>
-  </div>
-  <script>
-    // ===== Firebase Setup =====
-    // Set useFirebase=true and fill firebaseConfig to use Firestore!
-    const useFirebase = false; // Set to true for Firestore
-    const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_AUTH_DOMAIN",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_STORAGE_BUCKET",
-      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-      appId: "YOUR_APP_ID"
-    };
-    let db;
-    if (useFirebase) {
-      firebase.initializeApp(firebaseConfig);
-      db = firebase.firestore();
-    }
-    async function getData(collection) {
-      if (useFirebase) {
-        const snap = await db.collection(collection).get();
-        return snap.docs.map(d=>({id:d.id,...d.data()}));
-      } else {
-        try {
-          return JSON.parse(localStorage.getItem('mediledger.'+collection) || '[]');
-        } catch { return []; }
-      }
-    }
-    async function setData(collection, arr) {
-      if (useFirebase) {
-        const batch = db.batch();
-        const ref = db.collection(collection);
-        const snap = await ref.get();
-        snap.docs.forEach(doc=> batch.delete(doc.ref));
-        arr.forEach(obj=>{
-          const docRef = ref.doc(obj.id || db.collection(collection).doc().id);
-          batch.set(docRef, obj);
-        });
-        await batch.commit();
-      } else {
-        localStorage.setItem('mediledger.'+collection, JSON.stringify(arr));
-      }
-    }
-    async function addData(collection, obj) {
-      if (useFirebase) {
-        await db.collection(collection).doc(obj.id || db.collection(collection).doc().id).set(obj);
-      } else {
-        let arr = await getData(collection);
-        arr.unshift(obj);
-        await setData(collection, arr);
-      }
-    }
-    async function deleteData(collection, id) {
-      if (useFirebase) {
-        await db.collection(collection).doc(id).delete();
-      } else {
-        let arr = await getData(collection);
-        arr = arr.filter(o=>o.id!==id);
-        await setData(collection, arr);
-      }
-    }
-    // ===== Utilities ======
+  </div><script>
+    // ====== Utilities ======
     const $ = (sel, root=document) => root.querySelector(sel);
     const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
-    const storeKey = 'mediledger.transactions.v1';
+
+    const API_BASE = "/api/transactions";
     const currencyKey = 'mediledger.currency';
+
     const currencyMap = {
       INR: { symbol:'₹', locale: 'en-IN' },
       USD: { symbol:'$', locale: 'en-US' },
       EUR: { symbol:'€', locale: 'de-DE' },
       GBP: { symbol:'£', locale: 'en-GB' },
     };
+
     let transactions = [];
     let currentCurrency = localStorage.getItem(currencyKey) || 'INR';
+
     function fmtMoney(n){
       const cfg = currencyMap[currentCurrency] || currencyMap.INR;
       try{ return new Intl.NumberFormat(cfg.locale, { style:'currency', currency: currentCurrency }).format(n); }
       catch{ return cfg.symbol + (n||0).toFixed(2) }
     }
+
     // ====== Routing ======
     function go(route){
       $$('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.route===route));
       $$('main > section').forEach(s=>{
         s.hidden = (s.id !== route);
       });
-      if(route==='prescription') loadPrescriptions();
-      if(route==='inventory') loadInventory();
     }
-    // ====== Persistence ======
-    function load(){
-      getData('transactions').then(data=>{
-        transactions = data;
-        renderAll();
-      });
+
+    // ====== API Communication ======
+    async function load(){
+      try {
+        const response = await fetch(API_BASE);
+        if (!response.ok) throw new Error('Failed to fetch transactions');
+        const data = await response.json();
+        
+        // Transform backend data to match frontend format
+        transactions = data.map(item => ({
+          id: item.ID,
+          date: item.Date,
+          type: item.Type,
+          amount: parseFloat(item.Amount),
+          category: item.Category,
+          patientName: item['Patient Name'],
+          patientId: item['Patient ID'],
+          phone: item.Phone,
+          payment: item.Payment,
+          notes: item.Notes
+        }));
+      } catch (error) {
+        console.error("Error loading transactions:", error);
+        alert("Failed to load transactions. Check console for details.");
+        transactions = [];
+      }
     }
-    function save(){ setData('transactions', transactions); }
+
+    async function saveTransaction(tx) {
+      try {
+        const response = await fetch(API_BASE, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date: tx.date,
+            type: tx.type,
+            amount: tx.amount,
+            category: tx.category,
+            patientName: tx.patientName,
+            patientId: tx.patientId,
+            phone: tx.phone,
+            payment: tx.payment,
+            notes: tx.notes
+          })
+        });
+        
+        if (!response.ok) throw new Error('Failed to save transaction');
+        await load(); // Reload data from backend
+        return true;
+      } catch (error) {
+        console.error("Error saving transaction:", error);
+        alert("Failed to save transaction. Check console for details.");
+        return false;
+      }
+    }
+
+    async function deleteTransaction(id) {
+      try {
+        const response = await fetch(`${API_BASE}/${id}`, {
+          method: "DELETE"
+        });
+        
+        if (!response.ok) throw new Error('Failed to delete transaction');
+        await load(); // Reload data from backend
+        return true;
+      } catch (error) {
+        console.error("Error deleting transaction:", error);
+        alert("Failed to delete transaction. Check console for details.");
+        return false;
+      }
+    }
+
     // ====== Form Submit ======
-    $('#txForm').addEventListener('submit', (e)=>{
+    $('#txForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
       const data = Object.fromEntries(new FormData(e.target).entries());
       const amount = parseFloat(data.amount || '0');
       if(!isFinite(amount) || amount <= 0){ alert('Enter a valid amount'); return; }
+      
       const tx = {
-        id: crypto.randomUUID(),
         date: data.date || new Date().toISOString().slice(0,10),
         type: data.type,
         amount,
@@ -583,13 +590,16 @@
         payment: data.payment,
         notes: data.notes?.trim() || ''
       };
-      transactions.unshift(tx);
-      save();
-      e.target.reset();
-      $('#date').value = new Date().toISOString().slice(0,10);
-      renderAll();
-      go('list');
+      
+      const success = await saveTransaction(tx);
+      if (success) {
+        e.target.reset();
+        $('#date').value = new Date().toISOString().slice(0,10);
+        renderAll();
+        go('list');
+      }
     });
+
     // ====== Rendering ======
     function renderKPIs(){
       const income = transactions.filter(t=>t.type==='Income').reduce((a,b)=>a+b.amount,0);
@@ -598,8 +608,9 @@
       $('#kpiExpense').textContent = fmtMoney(expense);
       $('#kpiNet').textContent = fmtMoney(income - expense);
     }
+
     function monthlyBuckets(){
-      const map = new Map();
+      const map = new Map(); // key: YYYY-MM
       for(const t of transactions){
         const ym = (t.date||'').slice(0,7);
         if(!map.has(ym)) map.set(ym, { income:0, expense:0 });
@@ -610,6 +621,7 @@
       const expense = keys.map(k=>map.get(k).expense);
       return { labels: keys, income, expense };
     }
+
     function categoryTotals(){
       const map = new Map();
       for(const t of transactions){
@@ -621,14 +633,18 @@
       const totals = labels.map(l=> map.get(l).income - map.get(l).expense );
       return { labels, totals };
     }
+
     let monthlyChart, categoryChart;
     function renderCharts(){
       const m = monthlyBuckets();
       const c = categoryTotals();
+
       const ctxM = $('#monthlyChart');
       const ctxC = $('#categoryChart');
+
       if(monthlyChart) monthlyChart.destroy();
       if(categoryChart) categoryChart.destroy();
+
       monthlyChart = new Chart(ctxM, {
         type:'bar',
         data:{ labels: m.labels, datasets:[
@@ -637,17 +653,20 @@
         ]},
         options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
       });
+
       categoryChart = new Chart(ctxC, {
         type:'bar',
         data:{ labels:c.labels, datasets:[ { label:'Net by Category', data:c.totals, borderWidth:2 } ] },
         options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, scales:{ x:{ beginAtZero:true } } }
       });
     }
+
     function renderTable(){
       const tbody = $('#txTable tbody');
       const q = $('#search').value.trim().toLowerCase();
       tbody.innerHTML = '';
       const cfg = currencyMap[currentCurrency];
+
       const rows = transactions.filter(t=>{
         if(!q) return true;
         return [t.patientName, t.patientId, t.phone, t.category, t.payment, t.notes].some(v=> String(v||'').toLowerCase().includes(q));
@@ -665,25 +684,27 @@
         `;
         return tr;
       });
+
       rows.forEach(r=>tbody.appendChild(r));
+
+      // delete handlers
       $$('button[data-del]').forEach(btn=>{
-        btn.onclick = () => {
+        btn.onclick = async () => {
           const id = btn.getAttribute('data-del');
-          const idx = transactions.findIndex(t=>t.id===id);
-          if(idx>-1){
-            transactions.splice(idx,1);
-            save();
-            renderAll();
+          if(confirm('Are you sure you want to delete this transaction?')) {
+            await deleteTransaction(id);
           }
         }
       })
     }
+
     function renderAll(){
       renderKPIs();
       renderCharts();
       renderTable();
       $('#currencyLabel').textContent = currencyMap[currentCurrency].symbol;
     }
+
     // ====== CSV Export ======
     function toCSV(){
       const header = ['Date','Type','Amount','Category','Patient Name','Patient ID','Phone','Payment','Notes'];
@@ -693,6 +714,7 @@
       const csv = [header, ...lines].map(r=> r.map(v=>`"${String(v??'').replaceAll('"','\"')}"`).join(',')).join('\n');
       return csv;
     }
+
     $('#exportCsv').onclick = ()=>{
       const blob = new Blob([toCSV()], { type:'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
@@ -701,35 +723,11 @@
       a.click();
       URL.revokeObjectURL(a.href);
     }
-    // ====== Seed & Clear ======
-    $('#seedBtn').onclick = ()=>{
-      const today = new Date();
-      const iso = (d)=> d.toISOString().slice(0,10);
-      const sample = [
-        {date: iso(new Date(today.getFullYear(), today.getMonth()-2, 3)), type:'Income', amount:800, category:'Consultation', patientName:'Shreya Iyer', patientId:'P-1001', phone:'90000 11111', payment:'UPI', notes:'General checkup'},
-        {date: iso(new Date(today.getFullYear(), today.getMonth()-2, 9)), type:'Expense', amount:250, category:'Supplies', patientName:'', patientId:'', phone:'', payment:'Card', notes:'Syringes & gloves'},
-        {date: iso(new Date(today.getFullYear(), today.getMonth()-1, 12)), type:'Income', amount:4000, category:'Procedure', patientName:'Arjun Patel', patientId:'P-1002', phone:'90000 22222', payment:'Card', notes:'Minor surgery'},
-        {date: iso(new Date(today.getFullYear(), today.getMonth()-1, 15)), type:'Expense', amount:1500, category:'Staff', patientName:'', patientId:'', phone:'', payment:'Bank Transfer', notes:'Assistant salary (partial)'},
-        {date: iso(new Date(today.getFullYear(), today.getMonth()-1, 22)), type:'Income', amount:1200, category:'Diagnostics', patientName:'Neha Gupta', patientId:'P-1003', phone:'90000 33333', payment:'Cash', notes:'ECG + Lab'},
-        {date: iso(new Date(today.getFullYear(), today.getMonth(), 5)), type:'Expense', amount:2200, category:'Rent', payment:'Bank Transfer', notes:'Clinic rent'},
-        {date: iso(new Date(today.getFullYear(), today.getMonth(), 6)), type:'Expense', amount:650, category:'Utilities', payment:'UPI', notes:'Electricity + Water'},
-        {date: iso(new Date(today.getFullYear(), today.getMonth(), 7)), type:'Income', amount:900, category:'Consultation', patientName:'Rahul Kumar', patientId:'P-1004', phone:'90000 44444', payment:'UPI', notes:'Follow-up'},
-        {date: iso(new Date(today.getFullYear(), today.getMonth(), 11)), type:'Income', amount:1400, category:'Pharmacy', patientName:'Aisha Khan', patientId:'P-1005', phone:'90000 55555', payment:'Cash', notes:'Post-op meds'},
-        {date: iso(new Date(today.getFullYear(), today.getMonth(), 14)), type:'Expense', amount:300, category:'Supplies', payment:'Card', notes:'Bandages'}
-      ].map((t)=> ({ id: crypto.randomUUID(), payment: t.payment||'UPI', phone:t.phone||'', patientId:t.patientId||'', patientName:t.patientName||'', ...t }));
-      const sig = (t)=> `${t.date}|${t.amount}|${t.type}|${t.category}`;
-      const have = new Set(transactions.map(sig));
-      for(const t of sample){ if(!have.has(sig(t))) transactions.push(t); }
-      transactions.sort((a,b)=> (a.date<b.date?1:-1));
-      save();
-      renderAll();
-      go('dashboard');
-    };
-    $('#clearBtn').onclick = ()=>{
-      if(confirm('Delete ALL transactions?')){
-        transactions = []; save(); renderAll();
-      }
-    };
+
+    // Remove seed and clear functionality as they don't apply to backend
+    $('#seedBtn').style.display = 'none';
+    $('#clearBtn').style.display = 'none';
+
     // Currency change
     const currencySelect = $('#currencySelect');
     currencySelect.value = currentCurrency;
@@ -738,128 +736,27 @@
       localStorage.setItem(currencyKey, currentCurrency);
       renderAll();
     }
+
     // Search
     $('#search').addEventListener('input', renderTable);
     window.addEventListener('keydown', (e)=>{
       if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); $('#search').focus(); }
     });
+
     // Nav buttons
     $$('button[data-route]').forEach(btn=> btn.addEventListener('click', ()=> go(btn.dataset.route)));
-    // ===== Prescription Logic =====
-    let prescriptions = [];
-    async function loadPrescriptions() {
-      prescriptions = await getData('prescriptions');
-      renderPrescTable();
-    }
-    $('#prescForm').addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const data = Object.fromEntries(new FormData(e.target).entries());
-      const presc = {
-        id: crypto.randomUUID(),
-        date: data.date || new Date().toISOString().slice(0,10),
-        doctor: data.doctor,
-        patient: data.patient,
-        medicine: data.medicine,
-        notes: data.notes||''
-      };
-      await addData('prescriptions', presc);
-      await loadPrescriptions();
-      e.target.reset();
-      $('#prescDate').value = new Date().toISOString().slice(0,10);
-      showPrescTab('list');
-    });
-    function renderPrescTable() {
-      const tbody = $('#prescTableBody');
-      tbody.innerHTML = '';
-      prescriptions.forEach(p=>{
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${p.date}</td>
-          <td>${p.doctor}</td>
-          <td>${p.patient}</td>
-          <td>${p.medicine}</td>
-          <td>${p.notes||''}</td>
-          <td class="right"><button class="btn ghost" data-del-presc="${p.id}">Delete</button></td>
-        `;
-        tbody.appendChild(tr);
-      });
-      $$('button[data-del-presc]').forEach(btn=>{
-        btn.onclick = async ()=>{
-          await deleteData('prescriptions', btn.getAttribute('data-del-presc'));
-          await loadPrescriptions();
-        }
-      });
-    }
-    function showPrescTab(tab) {
-      $('#tab-add-presc').classList.toggle('active', tab==='add');
-      $('#tab-list-presc').classList.toggle('active', tab==='list');
-      $('#presc-add-section').style.display = tab==='add' ? '' : 'none';
-      $('#presc-list-section').style.display = tab==='list' ? '' : 'none';
-    }
-    $('#tab-add-presc').onclick = ()=> showPrescTab('add');
-    $('#tab-list-presc').onclick = ()=> { showPrescTab('list'); loadPrescriptions(); };
-    // ===== Inventory Logic =====
-    let inventory = [];
-    async function loadInventory() {
-      inventory = await getData('inventory');
-      renderInvTable();
-    }
-    $('#invForm').addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const data = Object.fromEntries(new FormData(e.target).entries());
-      const item = {
-        id: crypto.randomUUID(),
-        name: data.name,
-        batch: data.batch,
-        expiry: data.expiry,
-        quantity: parseInt(data.quantity,10)||0,
-        supplier: data.supplier||''
-      };
-      await addData('inventory', item);
-      await loadInventory();
-      e.target.reset();
-      showInvTab('list');
-    });
-    function renderInvTable() {
-      const tbody = $('#invTableBody');
-      tbody.innerHTML = '';
-      inventory.forEach(i=>{
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${i.name}</td>
-          <td>${i.batch}</td>
-          <td>${i.expiry}</td>
-          <td>${i.quantity}</td>
-          <td>${i.supplier||''}</td>
-          <td class="right">
-            <div class="inv-actions">
-              <button class="btn ghost" data-del-inv="${i.id}">Delete</button>
-            </div>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-      $$('button[data-del-inv]').forEach(btn=>{
-        btn.onclick = async ()=>{
-          await deleteData('inventory', btn.getAttribute('data-del-inv'));
-          await loadInventory();
-        }
-      });
-    }
-    function showInvTab(tab) {
-      $('#tab-add-inv').classList.toggle('active', tab==='add');
-      $('#tab-list-inv').classList.toggle('active', tab==='list');
-      $('#inv-add-section').style.display = tab==='add' ? '' : 'none';
-      $('#inv-list-section').style.display = tab==='list' ? '' : 'none';
-    }
-    $('#tab-add-inv').onclick = ()=> showInvTab('add');
-    $('#tab-list-inv').onclick = ()=> { showInvTab('list'); loadInventory(); };
-    // ===== Init =====
+
+    // Remove Firebase-related code and prescription/inventory functionality
+    // since they're not supported by the backend
+    $('#prescription').remove();
+    $('#inventory').remove();
+
+    // Update the notice text
+    $('.notice').textContent = 'Your entries are stored in Google Sheets via the backend API.';
+
+    // Init
     load();
     $('#date').value = new Date().toISOString().slice(0,10);
-    $('#prescDate').value = new Date().toISOString().slice(0,10);
-    showPrescTab('add');
-    showInvTab('add');
-  </script>
+</script>
 </body>
 </html>
