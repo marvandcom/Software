@@ -469,7 +469,8 @@
         </div>
       </section>
     </main>
-  </div><script>
+  </div>
+  <script>
     // ====== Utilities ======
     const $ = (sel, root=document) => root.querySelector(sel);
     const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
@@ -510,7 +511,7 @@
         
         // Transform backend data to match frontend format
         transactions = data.map(item => ({
-          id: item.ID,
+          id: item.ID.toString(), // Convert ID to string
           date: item.Date,
           type: item.Type,
           amount: parseFloat(item.Amount),
@@ -521,10 +522,13 @@
           payment: item.Payment,
           notes: item.Notes
         }));
+        
+        renderAll();
       } catch (error) {
         console.error("Error loading transactions:", error);
         alert("Failed to load transactions. Check console for details.");
         transactions = [];
+        renderAll();
       }
     }
 
@@ -547,7 +551,9 @@
         });
         
         if (!response.ok) throw new Error('Failed to save transaction');
-        await load(); // Reload data from backend
+        
+        // Reload data from backend to get the updated list with proper IDs
+        await load();
         return true;
       } catch (error) {
         console.error("Error saving transaction:", error);
@@ -558,12 +564,21 @@
 
     async function deleteTransaction(id) {
       try {
-        const response = await fetch(`${API_BASE}/${id}`, {
+        // Find the transaction to get its row ID
+        const transaction = transactions.find(t => t.id === id);
+        if (!transaction) throw new Error('Transaction not found');
+        
+        // Extract the numeric ID for the backend
+        const rowId = parseInt(transaction.id);
+        
+        const response = await fetch(`${API_BASE}/${rowId}`, {
           method: "DELETE"
         });
         
         if (!response.ok) throw new Error('Failed to delete transaction');
-        await load(); // Reload data from backend
+        
+        // Reload data from backend
+        await load();
         return true;
       } catch (error) {
         console.error("Error deleting transaction:", error);
@@ -595,7 +610,6 @@
       if (success) {
         e.target.reset();
         $('#date').value = new Date().toISOString().slice(0,10);
-        renderAll();
         go('list');
       }
     });
@@ -648,15 +662,20 @@
       monthlyChart = new Chart(ctxM, {
         type:'bar',
         data:{ labels: m.labels, datasets:[
-          { label:'Income', data:m.income, borderWidth:2 },
-          { label:'Expense', data:m.expense, borderWidth:2 }
+          { label:'Income', data:m.income, borderWidth:2, backgroundColor: 'rgba(75, 192, 192, 0.6)' },
+          { label:'Expense', data:m.expense, borderWidth:2, backgroundColor: 'rgba(255, 99, 132, 0.6)' }
         ]},
         options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
       });
 
       categoryChart = new Chart(ctxC, {
         type:'bar',
-        data:{ labels:c.labels, datasets:[ { label:'Net by Category', data:c.totals, borderWidth:2 } ] },
+        data:{ labels:c.labels, datasets:[ { 
+          label:'Net by Category', 
+          data:c.totals, 
+          borderWidth:2,
+          backgroundColor: 'rgba(54, 162, 235, 0.6)'
+        } ] },
         options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, scales:{ x:{ beginAtZero:true } } }
       });
     }
@@ -745,11 +764,6 @@
 
     // Nav buttons
     $$('button[data-route]').forEach(btn=> btn.addEventListener('click', ()=> go(btn.dataset.route)));
-
-    // Remove Firebase-related code and prescription/inventory functionality
-    // since they're not supported by the backend
-    $('#prescription').remove();
-    $('#inventory').remove();
 
     // Update the notice text
     $('.notice').textContent = 'Your entries are stored in Google Sheets via the backend API.';
